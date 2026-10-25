@@ -26,7 +26,7 @@ function InfoCard({ icon: Icon, label, children }) {
 }
 
 export default function QuotationDetail() {
-  const basePdfUrl = import.meta.env.VITE_API_URL || "";
+  const basePdfUrl = import.meta.env.VITE_PDF_URL || "";
   const { quotationId } = useParams()
   const navigate = useNavigate()
   const { isSuperAdmin } = useAuth()
