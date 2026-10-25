@@ -10,6 +10,7 @@ import { GST_MODE, monthTitle } from "@/utils/quotationCalc"
 import { QuotationStatusBadge } from "./QuotationList"
 import SendEmailModal from "./SendEmailModal"
 
+
 function InfoCard({ icon: Icon, label, children }) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-start gap-3">
@@ -25,6 +26,7 @@ function InfoCard({ icon: Icon, label, children }) {
 }
 
 export default function QuotationDetail() {
+  const basePdfUrl = import.meta.env.VITE_API_URL || "";
   const { quotationId } = useParams()
   const navigate = useNavigate()
   const { isSuperAdmin } = useAuth()
@@ -112,7 +114,7 @@ export default function QuotationDetail() {
           {q.pdf && (
             <>
               <a
-                href={q.pdf.url}
+                href={`${basePdfUrl}${q.pdf.url}`}
                 download={`${q.quotationNumber}.pdf`}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
@@ -120,7 +122,7 @@ export default function QuotationDetail() {
                 Download PDF
               </a>
               <a
-                href={`${process.env.VITE_PDF_URL}${q.pdf.url}`}
+                href={`${basePdfUrl}${q.pdf.url}`}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
@@ -215,7 +217,7 @@ export default function QuotationDetail() {
         </div>
         <div className="p-4">
           {q.pdf ? (
-            <iframe title={q.quotationNumber} src={q.pdf.url} className="w-full h-[80vh] rounded-lg border border-gray-200" />
+            <iframe title={q.quotationNumber} src={`${basePdfUrl}${q.pdf.url}`} className="w-full h-[80vh] rounded-lg border border-gray-200" />
           ) : (
             <p className="text-sm text-gray-500 text-center py-12">No PDF stored for this quotation.</p>
           )}
