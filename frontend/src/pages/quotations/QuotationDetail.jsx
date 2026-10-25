@@ -120,7 +120,7 @@ export default function QuotationDetail() {
                 Download PDF
               </a>
               <a
-                href={q.pdf.url}
+                href={`${process.env.VITE_API_URL}/uploads/${q.pdf.url}`}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
