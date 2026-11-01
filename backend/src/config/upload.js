@@ -7,6 +7,7 @@ const UPLOAD_DIRS = Object.freeze({
   COMPANIES: 'companies',
   IMPORTS: 'imports',
   PRODUCTS: 'products',
+  MARKETS: 'markets',
   QUOTATIONS: 'quotations',
 });
 

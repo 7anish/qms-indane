@@ -63,7 +63,8 @@ function ProductPicker({ selectedIds, onAdd, disabled }) {
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
                     <p className="text-xs text-gray-500">
-                      {p.gasType} · {p.cylinderCapacityKg} kg · {formatPrice(p.currentPrice)}
+                      {p.gasType} · {p.cylinderCapacityKg} kg · {formatPrice(p.currentPrice)} · security{" "}
+                      {formatPrice(p.securityAmount || 0)}
                     </p>
                   </div>
                 </div>
@@ -91,7 +92,7 @@ function ProductPicker({ selectedIds, onAdd, disabled }) {
 }
 
 export default function ProductsStep({ data, update }) {
-  const { items, gstMode, gstRate, rateMonth, basicLabel, securityDeposit } = data
+  const { items, gstMode, gstRate, rateMonth, basicLabel } = data
 
   const lines = useMemo(
     () =>
@@ -109,7 +110,14 @@ export default function ProductsStep({ data, update }) {
   )
 
   const addProduct = (p) =>
-    update({ items: [...items, { product: p, basicPrice: String(p.currentPrice), discount: "" }] })
+    update({
+      items: [
+        ...items,
+        { product: p, basicPrice: String(p.currentPrice), discount: "", securityAmount: String(p.securityAmount ?? 0) },
+      ],
+    })
+
+  const totalSecurity = items.reduce((sum, it) => sum + Number(it.securityAmount || 0), 0)
 
   const updateItem = (id, patch) =>
     update({ items: items.map((it) => (it.product._id === id ? { ...it, ...patch } : it)) })
@@ -178,20 +186,6 @@ export default function ProductsStep({ data, update }) {
                 value={gstRate}
                 onChange={(e) => update({ gstRate: e.target.value })}
                 placeholder="e.g. 18"
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Security Deposit (₹) <span className="text-red-600">*</span>
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={securityDeposit}
-                onChange={(e) => update({ securityDeposit: e.target.value })}
-                placeholder="e.g. 25000"
                 className={inputCls}
               />
             </div>
@@ -286,6 +280,62 @@ export default function ProductsStep({ data, update }) {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Rate Sheet</h3>
           <RateSheetTable lines={lines} rateMonth={rateMonth} basicLabel={basicLabel} gstMode={gstMode} gstRate={gstRate} />
+        </div>
+      )}
+
+      {items.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900">Security Amount</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Filled in from each product. Changes here apply to this quotation only, not to the product.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  {["#", "Product", "Capacity", "Product Default", "Security Amount (₹)"].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {items.map((it, idx) => {
+                  const invalid = it.securityAmount !== "" && !(Number(it.securityAmount) >= 0)
+                  return (
+                    <tr key={it.product._id} className="hover:bg-gray-50 align-top">
+                      <td className="px-4 py-3 text-sm text-gray-500">{idx + 1}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{it.product.name}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{it.product.cylinderCapacityKg} kg</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{formatPrice(it.product.securityAmount || 0)}</td>
+                      <td className="px-4 py-3 w-48">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={it.securityAmount}
+                          onChange={(e) => updateItem(it.product._id, { securityAmount: e.target.value })}
+                          placeholder="0"
+                          className={`${inputCls} ${invalid ? "border-red-300 bg-red-50" : ""}`}
+                        />
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot className="bg-gray-50">
+                <tr>
+                  <td colSpan={4} className="px-4 py-3 text-sm font-semibold text-gray-900">
+                    Total Security Amount
+                  </td>
+                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap">{formatPrice(totalSecurity)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </div>
       )}
     </div>

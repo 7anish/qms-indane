@@ -1,10 +1,18 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { LogOut, User } from "lucide-react"
+import { LogOut, Menu } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 import { ROLE_LABELS } from "@/utils/constants"
 
-export default function Header() {
+const initials = (name = "") =>
+  name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("") || "A"
+
+export default function Header({ onMenuClick }) {
   const { admin, logout } = useAuth()
   const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
@@ -16,24 +24,40 @@ export default function Header() {
   }
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">QMS Portal</h1>
-        <p className="text-sm text-gray-500">Manage your system with ease</p>
+    <header className="h-[72px] shrink-0 bg-white border-b border-line px-4 md:px-7 flex items-center justify-between gap-4">
+      <div className="flex items-center gap-3 min-w-0">
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className="lg:hidden w-10 h-10 flex items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 cursor-pointer"
+          aria-label="Open menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <div className="min-w-0">
+          <h1 className="text-lg md:text-xl font-bold text-ink truncate">QMS Portal</h1>
+          <p className="hidden sm:block text-sm text-muted truncate">Manage your system with ease</p>
+        </div>
       </div>
-      <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-2 px-3 py-2 bg-gray-100 rounded-lg">
-          <User className="w-4 h-4 text-gray-600" />
-          <span className="font-medium text-gray-900">{admin?.name}</span>
-          <span className="text-gray-500">({ROLE_LABELS[admin?.role]})</span>
+
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pl-1 pr-1 sm:pr-4 py-1 rounded-full sm:border sm:border-line">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-secondary text-white text-sm font-semibold flex items-center justify-center">
+            {initials(admin?.name)}
+          </div>
+          <div className="hidden sm:block leading-tight">
+            <p className="text-sm font-semibold text-ink">{admin?.name}</p>
+            <p className="text-xs text-muted">{ROLE_LABELS[admin?.role]}</p>
+          </div>
         </div>
         <button
           onClick={handleLogout}
           disabled={busy}
-          className="flex items-center space-x-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer"
+          className="h-[42px] flex items-center gap-2 px-4 text-sm font-medium text-gray-700 bg-white border border-line rounded-lg hover:border-red-200 hover:bg-red-50 hover:text-danger disabled:opacity-50 cursor-pointer"
+          title="Logout"
         >
           <LogOut className="w-4 h-4" />
-          <span>Logout</span>
+          <span className="hidden sm:inline">Logout</span>
         </button>
       </div>
     </header>

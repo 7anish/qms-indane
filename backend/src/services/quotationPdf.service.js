@@ -154,24 +154,98 @@ function drawRatesTable(doc, q, items) {
   doc.y = y + 14;
 }
 
-function drawSecurityDeposit(doc, q) {
+// Security amount per product (one row each) with the total at the bottom
+function drawSecurityTable(doc, q) {
   const left = doc.page.margins.left;
   const width = doc.page.width - left - doc.page.margins.right;
-  ensureSpace(doc, 40);
-  const y = doc.y;
-  doc.rect(left, y, width, 26).lineWidth(0.75).strokeColor(COLORS.border).stroke();
-  doc
-    .font('Helvetica-Bold')
-    .fontSize(11)
-    .fillColor(COLORS.text)
-    .text('SECURITY DEPOSIT', left + 6, y + 8, { width: width / 2 })
-    .text(`Rs. ${money(q.securityDeposit)}`, left + width / 2, y + 8, { width: width / 2 - 6, align: 'right' });
+  const pad = 6;
+  const cols = [
+    { header: 'S.NO.', width: 45, align: 'center' },
+    { header: 'TYPE OF CYLINDER', width: width - 45 - 110 - 150, align: 'left' },
+    { header: 'CAPACITY', width: 110, align: 'center' },
+    { header: 'SECURITY AMOUNT (RS.)', width: 150, align: 'right' },
+  ];
+
+  const rows = [
+    { type: 'banner', text: 'SECURITY AMOUNT' },
+    { cells: cols.map((c) => c.header), bold: true, headerRow: true },
+    ...q.items.map((it, i) => ({
+      cells: [
+        String(i + 1),
+        it.name,
+        `${Number(it.capacityKg).toLocaleString('en-IN')} KGS`,
+        money(it.securityAmount),
+      ],
+    })),
+    { type: 'total', label: 'TOTAL SECURITY AMOUNT', value: money(q.securityDeposit) },
+  ];
+
+  const measured = rows.map((row) => {
+    if (row.type === 'banner') {
+      doc.font('Helvetica-Bold').fontSize(11);
+      return { ...row, height: doc.heightOfString(row.text, { width: width - pad * 2 }) + pad * 2 };
+    }
+    doc.font(row.bold || row.type === 'total' ? 'Helvetica-Bold' : 'Helvetica').fontSize(10);
+    if (row.type === 'total') return { ...row, height: doc.heightOfString(row.label) + pad * 2 };
+    const h = Math.max(...row.cells.map((cell, i) => doc.heightOfString(cell, { width: cols[i].width - pad * 2 })));
+    return { ...row, height: h + pad * 2 };
+  });
+
+  // Keep the table on one page when it fits; very long lists continue on the next page
+  const pageSpace = doc.page.height - doc.page.margins.top - doc.page.margins.bottom;
+  const tableHeight = measured.reduce((sum, r) => sum + r.height, 0) + 10;
+  ensureSpace(doc, tableHeight <= pageSpace ? tableHeight : measured.slice(0, 3).reduce((sum, r) => sum + r.height, 0));
+  let y = doc.y;
+  doc.lineWidth(0.75).strokeColor(COLORS.border);
+
+  measured.forEach((row) => {
+    if (y + row.height > doc.page.height - doc.page.margins.bottom) {
+      doc.addPage();
+      y = doc.y;
+      doc.lineWidth(0.75).strokeColor(COLORS.border);
+    }
+
+    if (row.type === 'banner') {
+      doc.rect(left, y, width, row.height).fillAndStroke(COLORS.headerFill, COLORS.border);
+      doc
+        .fillColor(COLORS.text)
+        .font('Helvetica-Bold')
+        .fontSize(11)
+        .text(row.text, left + pad, y + pad, { width: width - pad * 2, align: 'center' });
+    } else if (row.type === 'total') {
+      const valueWidth = cols[3].width;
+      doc.rect(left, y, width, row.height).fill(COLORS.landedFill);
+      doc.rect(left, y, width - valueWidth, row.height).stroke();
+      doc.rect(left + width - valueWidth, y, valueWidth, row.height).stroke();
+      doc
+        .fillColor(COLORS.text)
+        .font('Helvetica-Bold')
+        .fontSize(10)
+        .text(row.label, left + pad, y + pad, { width: width - valueWidth - pad * 2 })
+        .text(row.value, left + width - valueWidth + pad, y + pad, { width: valueWidth - pad * 2, align: 'right' });
+    } else {
+      let x = left;
+      row.cells.forEach((cell, i) => {
+        doc.rect(x, y, cols[i].width, row.height).stroke();
+        doc
+          .fillColor(COLORS.text)
+          .font(row.bold ? 'Helvetica-Bold' : 'Helvetica')
+          .fontSize(10)
+          .text(cell, x + pad, y + pad, { width: cols[i].width - pad * 2, align: row.headerRow ? 'center' : cols[i].align });
+        x += cols[i].width;
+      });
+    }
+    y += row.height;
+  });
+
   doc.x = left;
-  doc.y = y + 26 + 18;
+  doc.y = y + 18;
 }
 
+// Every selected point, from all the chosen terms, as one numbered list under "Terms & Conditions"
 function drawTerms(doc, q) {
-  if (!q.terms?.length) return;
+  const points = (q.terms || []).flatMap((term) => term.points || []);
+  if (!points.length) return;
   const left = doc.page.margins.left;
   const width = doc.page.width - left - doc.page.margins.right;
 
@@ -179,18 +253,13 @@ function drawTerms(doc, q) {
   doc.font('Helvetica-Bold').fontSize(12).fillColor(COLORS.accent).text('TERMS & CONDITIONS', left);
   doc.moveDown(0.4);
 
-  q.terms.forEach((term) => {
-    ensureSpace(doc, 40);
-    doc.font('Helvetica-Bold').fontSize(10.5).fillColor(COLORS.text).text(term.heading, left, doc.y, { width });
-    doc.moveDown(0.2);
-    term.points.forEach((point, i) => {
-      const prefix = `${i + 1}.`;
-      const y = doc.y;
-      doc.font('Helvetica').fontSize(10).text(prefix, left + 8, y, { width: 18 });
-      doc.text(point, left + 28, y, { width: width - 28 });
-      doc.moveDown(0.15);
-    });
-    doc.moveDown(0.6);
+  points.forEach((point, i) => {
+    doc.font('Helvetica').fontSize(10).fillColor(COLORS.text);
+    ensureSpace(doc, doc.heightOfString(point, { width: width - 28 }) + 4);
+    const y = doc.y;
+    doc.text(`${i + 1}.`, left + 4, y, { width: 22 });
+    doc.text(point, left + 28, y, { width: width - 28 });
+    doc.moveDown(0.25);
   });
 }
 
@@ -231,7 +300,7 @@ const renderQuotationPdf = (q) =>
 
     drawHeader(doc, q);
     chunk(q.items, PRODUCTS_PER_TABLE).forEach((items) => drawRatesTable(doc, q, items));
-    drawSecurityDeposit(doc, q);
+    drawSecurityTable(doc, q);
     drawTerms(doc, q);
     drawFooter(doc);
     doc.end();

@@ -72,15 +72,15 @@ const greeting = () => {
 function StatCard({ label, value, caption, icon: Icon, color, to }) {
   const body = (
     <div
-      className={`h-full bg-white rounded-xl shadow-sm border-l-4 ${colorCls[color].border} p-5 hover:shadow-md transition-shadow duration-200`}
+      className="h-full bg-white rounded-xl shadow-sm border border-line p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-gray-600 mb-1">{label}</p>
-          <p className="text-3xl font-bold text-gray-900 mb-1 tabular-nums">{value}</p>
+          <p className="text-sm font-medium text-muted mb-1.5">{label}</p>
+          <p className="text-3xl font-semibold text-ink mb-1 tabular-nums tracking-tight">{value}</p>
           <p className="text-sm text-gray-500 truncate">{caption}</p>
         </div>
-        <div className={`w-12 h-12 ${colorCls[color].tile} rounded-lg flex items-center justify-center shrink-0`}>
+        <div className={`w-12 h-12 ${colorCls[color].tile} rounded-xl flex items-center justify-center shrink-0`}>
           <Icon className={`w-6 h-6 ${colorCls[color].icon}`} />
         </div>
       </div>
@@ -97,8 +97,8 @@ function StatCard({ label, value, caption, icon: Icon, color, to }) {
 
 function Card({ title, icon: Icon, action, children }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col">
-      <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between gap-3">
+    <div className="bg-white rounded-xl shadow-sm border border-line flex flex-col">
+      <div className="px-6 py-4 border-b border-line flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Icon className="w-5 h-5 text-gray-500" />
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>

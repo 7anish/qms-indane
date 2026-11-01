@@ -4,12 +4,13 @@ import { quotationApi } from "@/api/quotation.api"
 import Spinner from "@/components/ui/Spinner"
 import EmailPreviewModal from "@/components/ui/EmailPreviewModal"
 import { previewDocument } from "@/utils/template"
+import RspAttachmentPicker from "./RspAttachmentPicker"
 
 /**
  * Last wizard step: every recipient and the exact email they will get (rendered by the backend
  * from the unsaved wizard data and the chosen template). Nothing is sent here.
  */
-export default function EmailPreviewStep({ payload }) {
+export default function EmailPreviewStep({ payload, rsp, onRspChange }) {
   const [preview, setPreview] = useState(null)
   const [selected, setSelected] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -82,11 +83,18 @@ export default function EmailPreviewStep({ payload }) {
               <p className="text-xs text-gray-500">BCC</p>
               <p className="text-gray-900 break-words">{preview.bcc.length ? preview.bcc.join(", ") : "—"}</p>
             </div>
-            <div className="flex items-center gap-2 text-sm text-gray-700">
-              <Paperclip className="w-4 h-4 text-gray-500" />
-              {preview.attachment}
+            <div className="text-sm space-y-1">
+              <p className="text-xs text-gray-500">Attachments</p>
+              {(preview.attachments || [preview.attachment]).map((a) => (
+                <div key={a} className="flex items-center gap-2 text-gray-700 break-all">
+                  <Paperclip className="w-4 h-4 text-gray-500 shrink-0" />
+                  {a}
+                </div>
+              ))}
             </div>
           </div>
+
+          <RspAttachmentPicker value={rsp} onChange={onRspChange} />
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -176,7 +184,7 @@ export default function EmailPreviewStep({ payload }) {
         to={`${email.name} <${email.email}>`}
         cc={preview.cc}
         bcc={preview.bcc}
-        attachments={[preview.attachment]}
+        attachments={preview.attachments || [preview.attachment]}
         recipients={preview.emails}
         selectedRecipient={email}
         onSelectRecipient={(r) => setSelected(preview.emails.findIndex((e) => e.email === r.email))}

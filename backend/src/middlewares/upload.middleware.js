@@ -52,6 +52,12 @@ const productImageUpload = createUploader(UPLOAD_DIRS.PRODUCTS, {
   image: IMAGE_TYPES,
 });
 
+// Market RSP rate images (with / without GST)
+const marketImagesUpload = createUploader(UPLOAD_DIRS.MARKETS, {
+  ratesWithGst: IMAGE_TYPES,
+  ratesWithoutGst: IMAGE_TYPES,
+});
+
 // Excel import: some browsers/OSes send .xlsx as octet-stream or with no type, so check the extension too
 const XLSX_FALLBACK_TYPES = [MIME.XLSX, 'application/octet-stream', ''];
 
@@ -71,4 +77,4 @@ const excelImportUpload = multer({
   },
 }).single('file');
 
-module.exports = { companyDocsUpload, productImageUpload, excelImportUpload };
+module.exports = { companyDocsUpload, productImageUpload, marketImagesUpload, excelImportUpload };

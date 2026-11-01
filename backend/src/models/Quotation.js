@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const fileSchema = require('./schemas/file.schema');
-const { QUOTATION_STATUS, GST_MODE, DEFAULT_GST_RATE } = require('../config/constants');
+const { QUOTATION_STATUS, GST_MODE, DEFAULT_GST_RATE, RSP_GST } = require('../config/constants');
 
 /*
  * Lifecycle: draft -> ready -> sent
@@ -19,7 +19,6 @@ const itemSchema = new mongoose.Schema(
   {
     product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
     name: { type: String, required: true },
-    sku: String,
     gasType: String,
     unit: String,
     capacityKg: { type: Number, required: true },
@@ -29,6 +28,7 @@ const itemSchema = new mongoose.Schema(
     gstAmount: { type: Number, required: true },
     total: { type: Number, required: true },
     landedCostPerKg: { type: Number, required: true },
+    securityAmount: { type: Number, default: 0, min: 0 },
   },
   { _id: false }
 );
@@ -61,17 +61,42 @@ const draftSchema = new mongoose.Schema(
         product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
         basicPrice: { type: Number, min: 0 },
         discount: { type: Number, min: 0 },
+        securityAmount: { type: Number, min: 0 },
       },
     ],
     rateMonth: String,
     basicLabel: String,
     gstMode: { type: String, enum: Object.values(GST_MODE) },
     gstRate: { type: Number, min: 0, max: 100 },
-    securityDeposit: { type: Number, min: 0 },
-    terms: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Term' }],
+    terms: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Term' }], // older drafts: whole terms
+    // Selected points of each term, terms in the order they were selected
+    termPoints: [
+      {
+        _id: false,
+        term: { type: mongoose.Schema.Types.ObjectId, ref: 'Term' },
+        points: [String],
+      },
+    ],
     recipients: [{ type: mongoose.Schema.Types.ObjectId, ref: 'CompanyEmployee' }],
     emailTemplate: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailTemplate' },
+    rsp: {
+      market: { type: mongoose.Schema.Types.ObjectId, ref: 'Market' },
+      gst: { type: String, enum: Object.values(RSP_GST) },
+    },
     step: { type: Number, default: 0 },
+  },
+  { _id: false }
+);
+
+// Market RSP (Retail Selling Price) rate image attached to every email of the quotation.
+// The image is copied when the quotation is created, so later monthly updates don't change it.
+const rspAttachmentSchema = new mongoose.Schema(
+  {
+    market: { type: mongoose.Schema.Types.ObjectId, ref: 'Market' },
+    marketTitle: { type: String, required: true },
+    gst: { type: String, enum: Object.values(RSP_GST), required: true },
+    ratesMonth: String,
+    file: { type: fileSchema, required: true },
   },
   { _id: false }
 );
@@ -124,6 +149,7 @@ const quotationSchema = new mongoose.Schema(
     gstMode: { type: String, enum: Object.values(GST_MODE), default: GST_MODE.EXCLUDED },
     gstRate: { type: Number, default: DEFAULT_GST_RATE, min: 0, max: 100 },
 
+    // Total of the items' security amounts
     securityDeposit: { type: Number, required: isFinal, min: 0 },
 
     terms: [termSnapshotSchema],
@@ -144,6 +170,7 @@ const quotationSchema = new mongoose.Schema(
     draft: draftSchema,
 
     pdf: fileSchema,
+    rspAttachment: rspAttachmentSchema,
     emails: [emailLogSchema],
     lastSentAt: Date,
 

@@ -9,15 +9,20 @@ import HtmlEmailEditor from "@/components/ui/HtmlEmailEditor"
 import EmailPreviewModal from "@/components/ui/EmailPreviewModal"
 import { FormatToggle } from "@/pages/emailTemplates/EmailTemplateForm"
 import { htmlToText, plainEmailToHtml, renderTemplate, textToHtml } from "@/utils/template"
+import { monthTitle } from "@/utils/quotationCalc"
 
 const inputCls =
   "w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 
-const BUILT_IN = "" // select value for "no template" (built-in text)
+// e.g. "RSP - Bhiwadi Market (With GST, November 2026)"
+export const rspAttachmentLabel = (rsp) =>
+  `RSP - ${rsp.marketTitle} (${rsp.gst === "with" ? "With GST" : "Without GST"}${rsp.ratesMonth ? `, ${monthTitle(rsp.ratesMonth)}` : ""})`
+
+const NO_TEMPLATE = "" // only when no email templates exist yet
 
 export default function SendEmailModal({ open, quotation, onClose, onSent }) {
   const [templates, setTemplates] = useState([])
-  const [templateId, setTemplateId] = useState(BUILT_IN)
+  const [templateId, setTemplateId] = useState(NO_TEMPLATE)
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
   const [format, setFormat] = useState("text")
@@ -30,6 +35,11 @@ export default function SendEmailModal({ open, quotation, onClose, onSent }) {
   const [composing, setComposing] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState("")
+
+  const attachmentNames = [
+    `${quotation.quotationNumber}.pdf`,
+    ...(quotation.rspAttachment ? [rspAttachmentLabel(quotation.rspAttachment)] : []),
+  ]
 
   // HTML preview shows the email as the first recipient will get it
   const [previewRecipient, setPreviewRecipient] = useState(quotation.recipients[0])
@@ -44,7 +54,7 @@ export default function SendEmailModal({ open, quotation, onClose, onSent }) {
       : plainEmailToHtml(message, recipientValues, pricingTable.html)
 
   const applyComposed = (d) => {
-    setTemplateId(d.templateId || BUILT_IN)
+    setTemplateId(d.templateId || NO_TEMPLATE)
     setSubject(d.subject)
     setMessage(d.message)
     setFormat(d.format || "text")
@@ -156,7 +166,11 @@ export default function SendEmailModal({ open, quotation, onClose, onSent }) {
               <label className="block text-sm font-medium text-gray-700 mb-2">Email Template</label>
               <div className="relative">
                 <select value={templateId} onChange={(e) => changeTemplate(e.target.value)} disabled={composing} className={inputCls}>
-                  <option value={BUILT_IN}>Built-in default</option>
+                  {!templateId && (
+                    <option value={NO_TEMPLATE} disabled>
+                      No templates yet - create one under Email Templates
+                    </option>
+                  )}
                   {templates.map((t) => (
                     <option key={t._id} value={t._id}>
                       {t.name}
@@ -253,7 +267,7 @@ export default function SendEmailModal({ open, quotation, onClose, onSent }) {
 
           <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-700">
             <Paperclip className="w-4 h-4 text-gray-500" />
-            {quotation.quotationNumber}.pdf
+            {attachmentNames.join(", ")}
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2">
@@ -284,7 +298,7 @@ export default function SendEmailModal({ open, quotation, onClose, onSent }) {
         to={previewRecipient ? `${previewRecipient.name} <${previewRecipient.email}>` : ""}
         cc={cc}
         bcc={bcc}
-        attachments={[`${quotation.quotationNumber}.pdf`]}
+        attachments={attachmentNames}
         recipients={quotation.recipients}
         selectedRecipient={previewRecipient}
         onSelectRecipient={setPreviewRecipient}

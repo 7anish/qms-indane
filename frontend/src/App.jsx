@@ -13,6 +13,8 @@ import TermForm from "@/pages/terms/TermForm"
 import ProductList from "@/pages/products/ProductList"
 import ProductForm from "@/pages/products/ProductForm"
 import ProductDetail from "@/pages/products/ProductDetail"
+import MarketList from "@/pages/markets/MarketList"
+import MarketForm from "@/pages/markets/MarketForm"
 import QuotationList from "@/pages/quotations/QuotationList"
 import QuotationCreate from "@/pages/quotations/QuotationCreate"
 import QuotationDetail from "@/pages/quotations/QuotationDetail"
@@ -46,6 +48,9 @@ export default function App() {
       <Route path="/products/create" element={guarded(<ProductForm />)} />
       <Route path="/products/:productId" element={guarded(<ProductDetail />)} />
       <Route path="/products/:productId/edit" element={guarded(<ProductForm />)} />
+      <Route path="/markets" element={guarded(<MarketList />)} />
+      <Route path="/markets/create" element={guarded(<MarketForm />)} />
+      <Route path="/markets/:marketId/edit" element={guarded(<MarketForm />)} />
       <Route path="/quotations" element={guarded(<QuotationList />)} />
       <Route path="/quotations/create" element={guarded(<QuotationCreate />)} />
       <Route path="/quotations/companies" element={guarded(<CompanyQuotations />)} />

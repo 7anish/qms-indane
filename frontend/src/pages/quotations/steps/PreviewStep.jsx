@@ -63,11 +63,14 @@ export default function PreviewStep({ data, payload }) {
         <SummaryRow icon={FileText} label="GST">
           {data.gstMode === GST_MODE.INCLUDED ? "Included in price" : "Excluded (added on top)"} @ {data.gstRate}%
         </SummaryRow>
-        <SummaryRow icon={ShieldCheck} label="Security Deposit">
-          {formatPrice(Number(data.securityDeposit))}
+        <SummaryRow icon={ShieldCheck} label="Total Security Amount">
+          {formatPrice(data.items.reduce((sum, it) => sum + Number(it.securityAmount || 0), 0))}
         </SummaryRow>
         <SummaryRow icon={ScrollText} label="Terms & Conditions">
-          {data.termIds.length ? `${data.termIds.length} selected` : "None"}
+          {(() => {
+            const count = (data.terms || []).reduce((sum, s) => sum + (s.points?.length || 0), 0)
+            return count ? `${count} point${count === 1 ? "" : "s"} selected` : "None"
+          })()}
         </SummaryRow>
         <SummaryRow icon={Mail} label="Send to">
           {data.recipients.map((r) => (

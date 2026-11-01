@@ -8,7 +8,7 @@ import Alert from "@/components/ui/Alert"
 import { formatDateTime, formatPrice } from "@/utils/format"
 import { GST_MODE, monthTitle } from "@/utils/quotationCalc"
 import { QuotationStatusBadge } from "./QuotationList"
-import SendEmailModal from "./SendEmailModal"
+import SendEmailModal, { rspAttachmentLabel } from "./SendEmailModal"
 
 
 function InfoCard({ icon: Icon, label, children }) {
@@ -157,10 +157,10 @@ export default function QuotationDetail() {
         <InfoCard icon={FileText} label="GST">
           {q.gstMode === GST_MODE.INCLUDED ? "Included in price" : "Excluded (added on top)"} @ {q.gstRate}%
         </InfoCard>
-        <InfoCard icon={ShieldCheck} label="Security Deposit">
+        <InfoCard icon={ShieldCheck} label="Total Security Amount">
           <span className="font-semibold">{formatPrice(q.securityDeposit)}</span>
         </InfoCard>
-        <InfoCard icon={Mail} label={`Send to · template: ${q.emailTemplate?.name || "built-in"}`}>
+        <InfoCard icon={Mail} label={`Send to · template: ${q.emailTemplate?.name || "default"}`}>
           {q.recipients.map((r) => (
             <div key={r.email} className="truncate">
               {r.name} <span className="text-gray-500">({r.email})</span>
@@ -168,6 +168,30 @@ export default function QuotationDetail() {
           ))}
         </InfoCard>
       </div>
+
+      {q.rspAttachment && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center gap-4">
+          <a href={`${basePdfUrl}${q.rspAttachment.file.url}`} target="_blank" rel="noreferrer" className="shrink-0">
+            <img
+              src={`${basePdfUrl}${q.rspAttachment.file.url}`}
+              alt="RSP rates"
+              className="w-20 h-20 object-contain rounded-lg bg-gray-50 border border-gray-200"
+            />
+          </a>
+          <div className="min-w-0">
+            <p className="text-xs text-gray-500">Attached to every email</p>
+            <p className="text-sm font-medium text-gray-900">{rspAttachmentLabel(q.rspAttachment)}</p>
+            <a
+              href={`${basePdfUrl}${q.rspAttachment.file.url}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+            >
+              <ExternalLink className="w-3.5 h-3.5" /> View image
+            </a>
+          </div>
+        </div>
+      )}
 
       {q.emails?.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200">

@@ -12,16 +12,16 @@ export default function Modal({ open, title, onClose, children, size = "max-w-lg
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy/50 backdrop-blur-sm" onMouseDown={onClose}>
       <div
-        className={`w-full ${size} max-h-[90vh] overflow-y-auto bg-white rounded-xl shadow-xl border border-gray-200`}
+        className={`w-full ${size} max-h-[90vh] overflow-y-auto bg-white rounded-xl shadow-xl border border-line`}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+        <div className="flex items-center justify-between px-6 py-5 border-b border-line">
+          <h2 className="text-lg font-semibold text-ink">{title}</h2>
           <button
             onClick={onClose}
-            className="p-1 text-gray-400 hover:text-gray-600 rounded-lg transition-colors cursor-pointer"
+            className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>

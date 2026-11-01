@@ -3,7 +3,6 @@ import { NavLink, useLocation } from "react-router-dom"
 import {
   Building2,
   ChevronDown,
-  ChevronRight,
   FileText,
   LayoutDashboard,
   List,
@@ -12,9 +11,11 @@ import {
   Package,
   Plus,
   ScrollText,
+  Store,
   UserCog,
   Users,
   UserPlus,
+  X,
 } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 import { APP_NAME } from "@/utils/constants"
@@ -51,6 +52,15 @@ const navItems = [
     ],
   },
   {
+    label: "Markets",
+    icon: Store,
+    basePath: "/markets",
+    children: [
+      { label: "Add Market", to: "/markets/create", icon: Plus },
+      { label: "All Markets", to: "/markets", icon: List },
+    ],
+  },
+  {
     label: "Terms",
     icon: ScrollText,
     basePath: "/terms",
@@ -79,10 +89,11 @@ const navItems = [
   },
 ]
 
-const itemBase = "flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors duration-200"
-const activeCls = "bg-blue-50 text-blue-700 border-l-4 border-blue-600"
+const itemBase = "flex items-center gap-3 px-3 h-10 rounded-lg transition-colors duration-200"
+const activeCls = "bg-primary text-white shadow-[0_6px_16px_-6px_rgba(37,99,235,0.7)]"
+const idleCls = "text-slate-300 hover:bg-white/[0.06] hover:text-white"
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen = false, onClose = () => {} }) {
   const { isSuperAdmin } = useAuth()
   const { pathname } = useLocation()
   const [open, setOpen] = useState(() =>
@@ -90,85 +101,108 @@ export default function Sidebar() {
   )
 
   return (
-    <aside className="w-64 bg-white shadow-lg border-r border-gray-200 flex flex-col">
-      <div className="px-6 py-4.5 border-b border-gray-200">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-            <ListChecks className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">{APP_NAME}</h1>
-            <p className="text-sm text-gray-500">Admin Panel</p>
-          </div>
-        </div>
-      </div>
+    <>
+      {/* Backdrop for the mobile drawer */}
+      <div
+        onClick={onClose}
+        className={`fixed inset-0 z-40 bg-navy/60 backdrop-blur-[2px] lg:hidden transition-opacity ${
+          mobileOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+      />
 
-      <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-        {navItems.map((item) => {
-          const Icon = item.icon
-
-          if (!item.children) {
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  `${itemBase} ${isActive ? activeCls : "text-gray-700 hover:bg-gray-100"}`
-                }
-              >
-                <Icon className="w-5 h-5" />
-                <span className="font-medium">{item.label}</span>
-              </NavLink>
-            )
-          }
-
-          const isOpen = open[item.label]
-          const children = item.children.filter((c) => !c.superAdminOnly || isSuperAdmin)
-          return (
-            <div key={item.label}>
-              <button
-                type="button"
-                onClick={() => setOpen((s) => ({ ...s, [item.label]: !s[item.label] }))}
-                className={`${itemBase} w-full justify-between text-gray-700 hover:bg-gray-100 cursor-pointer`}
-              >
-                <span className="flex items-center space-x-3">
-                  <Icon className="w-5 h-5" />
-                  <span className="font-medium">{item.label}</span>
-                </span>
-                {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              </button>
-              {isOpen && (
-                <div className="ml-6 mt-2 space-y-1">
-                  {children.map((child) => {
-                    const ChildIcon = child.icon
-                    // The section's root link (e.g. "All Companies") stays active on nested
-                    // pages like /companies/:id, unless a sibling link matches exactly.
-                    const isActive =
-                      pathname === child.to ||
-                      (child.to === item.basePath &&
-                        pathname.startsWith(`${item.basePath}/`) &&
-                        !children.some((c) => c.to === pathname))
-                    return (
-                      <NavLink
-                        key={child.to}
-                        to={child.to}
-                        className={() =>
-                          `${itemBase} text-sm ${
-                            isActive ? activeCls : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                          }`
-                        }
-                      >
-                        <ChildIcon className="w-4 h-4" />
-                        <span className="font-medium">{child.label}</span>
-                      </NavLink>
-                    )
-                  })}
-                </div>
-              )}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-[260px] shrink-0 bg-navy flex flex-col transition-transform duration-300 lg:static lg:translate-x-0 ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="h-[72px] shrink-0 px-6 flex items-center justify-between border-b border-white/[0.08]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/40">
+              <ListChecks className="w-5 h-5 text-white" />
             </div>
-          )
-        })}
-      </nav>
-    </aside>
+            <div className="leading-tight">
+              <h1 className="text-lg font-bold text-white">{APP_NAME}</h1>
+              <p className="text-xs text-slate-400">Admin Panel</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg text-slate-300 hover:bg-white/10 hover:text-white cursor-pointer"
+            aria-label="Close menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <p className="px-6 pt-6 pb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Menu</p>
+
+        <nav className="flex-1 px-4 pb-6 space-y-1 overflow-y-auto">
+          {navItems.map((item) => {
+            const Icon = item.icon
+
+            if (!item.children) {
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) => `${itemBase} ${isActive ? activeCls : idleCls}`}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span className="text-sm font-medium">{item.label}</span>
+                </NavLink>
+              )
+            }
+
+            const isOpen = open[item.label]
+            const inSection = pathname.startsWith(item.basePath)
+            const children = item.children.filter((c) => !c.superAdminOnly || isSuperAdmin)
+            return (
+              <div key={item.label}>
+                <button
+                  type="button"
+                  onClick={() => setOpen((s) => ({ ...s, [item.label]: !s[item.label] }))}
+                  className={`${itemBase} w-full justify-between cursor-pointer ${
+                    inSection ? "text-white bg-white/[0.04]" : idleCls
+                  }`}
+                >
+                  <span className="flex items-center gap-3">
+                    <Icon className="w-5 h-5" />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? "" : "-rotate-90"}`}
+                  />
+                </button>
+                {isOpen && (
+                  <div className="ml-5 mt-1 mb-2 pl-3 border-l border-white/[0.08] space-y-1">
+                    {children.map((child) => {
+                      const ChildIcon = child.icon
+                      // The section's root link (e.g. "All Companies") stays active on nested
+                      // pages like /companies/:id, unless a sibling link matches exactly.
+                      const isActive =
+                        pathname === child.to ||
+                        (child.to === item.basePath &&
+                          pathname.startsWith(`${item.basePath}/`) &&
+                          !children.some((c) => c.to === pathname))
+                      return (
+                        <NavLink
+                          key={child.to}
+                          to={child.to}
+                          className={() => `${itemBase} h-9 text-sm ${isActive ? activeCls : idleCls}`}
+                        >
+                          <ChildIcon className="w-4 h-4" />
+                          <span className="font-medium">{child.label}</span>
+                        </NavLink>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </nav>
+      </aside>
+    </>
   )
 }

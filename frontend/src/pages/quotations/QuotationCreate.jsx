@@ -15,29 +15,35 @@ import RecipientsStep from "./steps/RecipientsStep"
 import PreviewStep from "./steps/PreviewStep"
 import EmailPreviewStep from "./steps/EmailPreviewStep"
 
+// Step indexes, in wizard order
+const STEP = { COMPANY: 0, RECIPIENTS: 1, PRODUCTS: 2, TERMS: 3, TEMPLATE: 4, QUOTATION_PREVIEW: 5, EMAIL_PREVIEW: 6 }
+
 const STEPS = [
   { title: "Company", subtitle: "Who is the quotation for?" },
-  { title: "Products", subtitle: "Products, pricing, GST and security deposit" },
-  { title: "Terms", subtitle: "Terms & conditions to include" },
+  { title: "Employees", subtitle: "Employees who receive the quotation" },
+  { title: "Products", subtitle: "Products, pricing, GST and security amounts" },
+  { title: "Terms", subtitle: "Pick the terms & conditions points to include" },
   { title: "Email Template", subtitle: "Email sent with the quotation" },
-  { title: "Recipients", subtitle: "Employees who receive the quotation" },
   { title: "Quotation Preview", subtitle: "Check the quotation PDF" },
   { title: "Email Preview", subtitle: "Check the email each recipient will get, then create the quotation" },
 ]
 
 const initialData = () => ({
   company: null,
-  items: [], // [{ product, basicPrice, discount }] - inputs kept as strings while editing
+  recipients: [],
+  items: [], // [{ product, basicPrice, discount, securityAmount }] - inputs kept as strings while editing
   rateMonth: new Date().toISOString().slice(0, 7),
   basicLabel: "BASIC BY IOCL",
   gstMode: GST_MODE.EXCLUDED,
   gstRate: String(DEFAULT_GST_RATE),
-  securityDeposit: "",
-  termIds: [],
-  emailTemplateId: "", // "" = built-in text
-  templateTouched: false, // the default template is pre-selected only on the first visit to that step
-  recipients: [],
+  terms: [], // [{ termId, points: [point text] }]
+  emailTemplateId: "",
+  templateTouched: false, // the template step has been visited
+  rsp: { enabled: false, marketId: "", gst: "" }, // market RSP rates image attached to the email
 })
+
+// The RSP attachment as sent to the API: only when fully chosen
+const rspPayload = (rsp) => (rsp?.enabled && rsp.marketId && rsp.gst ? { marketId: rsp.marketId, gst: rsp.gst } : null)
 
 const toInput = (n) => (n === null || n === undefined ? "" : String(n))
 const toNumberOrNull = (s) => (s === "" || s === null || s === undefined ? null : Number(s))
@@ -53,35 +59,42 @@ const dataFromDraft = (q) => {
         product: i.product,
         basicPrice: toInput(i.basicPrice ?? i.product.currentPrice),
         discount: toInput(i.discount),
+        securityAmount: toInput(i.securityAmount ?? i.product.securityAmount ?? 0),
       })),
     rateMonth: d.rateMonth || new Date().toISOString().slice(0, 7),
     basicLabel: d.basicLabel ?? "BASIC BY IOCL",
     gstMode: d.gstMode || GST_MODE.EXCLUDED,
     gstRate: toInput(d.gstRate ?? DEFAULT_GST_RATE),
-    securityDeposit: toInput(d.securityDeposit),
-    termIds: (d.terms || []).filter(Boolean).map((t) => t._id),
+    terms: d.termPoints?.length
+      ? d.termPoints.filter((s) => s.term && s.points?.length).map((s) => ({ termId: s.term, points: s.points }))
+      : // Older drafts selected whole terms: keep all of their points
+        (d.terms || []).filter((t) => t && t._id).map((t) => ({ termId: t._id, points: t.points || [] })),
     emailTemplateId: d.emailTemplate?._id || "",
     templateTouched: true,
     recipients: (d.recipients || []).filter((r) => r && r.company === q.company),
+    rsp: d.rsp?.market
+      ? { enabled: true, marketId: d.rsp.market._id, gst: d.rsp.gst || "" }
+      : { enabled: false, marketId: "", gst: "" },
   }
 }
 
 // Returns an error message when the step is incomplete, otherwise null
 const validateStep = (step, d) => {
-  if (step === 0 && !d.company) return "Select a company to continue"
-  if (step === 1) {
+  if (step === STEP.COMPANY && !d.company) return "Select a company to continue"
+  if (step === STEP.RECIPIENTS && !d.recipients.length) return "Select at least one employee to send the quotation to"
+  if (step === STEP.PRODUCTS) {
     if (!d.items.length) return "Add at least one product"
     if (!d.rateMonth) return "Select the month for the rates"
     const rate = Number(d.gstRate)
     if (d.gstRate === "" || !(rate >= 0 && rate <= 100)) return "GST rate must be between 0 and 100"
-    if (d.securityDeposit === "" || !(Number(d.securityDeposit) >= 0)) return "Enter the security deposit (0 or more)"
     for (const it of d.items) {
       if (it.basicPrice === "" || !(Number(it.basicPrice) >= 0)) return `${it.product.name}: enter a basic price`
       if (Number(it.discount || 0) < 0) return `${it.product.name}: discount cannot be negative`
       if (Number(it.discount || 0) > Number(it.basicPrice)) return `${it.product.name}: discount cannot be more than the basic price`
+      if (!(Number(it.securityAmount || 0) >= 0)) return `${it.product.name}: security amount cannot be negative`
     }
   }
-  if (step === 4 && !d.recipients.length) return "Select at least one employee to send the quotation to"
+  if (step === STEP.TEMPLATE && !d.emailTemplateId) return "Select an email template"
   return null
 }
 
@@ -151,7 +164,7 @@ export default function QuotationCreate() {
       .get(presetCompanyId)
       .then((res) => {
         setData((d) => (d.company ? d : { ...d, company: res.data }))
-        setStep((s) => (s === 0 ? 1 : s))
+        setStep((s) => (s === STEP.COMPANY ? STEP.RECIPIENTS : s))
       })
       .catch(() => {}) // unknown id: just start at the company step
   }, [quotationId, presetCompanyId])
@@ -194,15 +207,16 @@ export default function QuotationCreate() {
         productId: it.product._id,
         basicPrice: Number(it.basicPrice),
         discount: Number(it.discount || 0),
+        securityAmount: Number(it.securityAmount || 0),
       })),
       rateMonth: data.rateMonth,
       basicLabel: data.basicLabel.trim() || undefined,
       gstMode: data.gstMode,
       gstRate: Number(data.gstRate),
-      securityDeposit: Number(data.securityDeposit),
-      termIds: data.termIds,
+      terms: data.terms || [],
       emailTemplateId: data.emailTemplateId || undefined,
       recipientIds: data.recipients.map((r) => r._id),
+      rsp: rspPayload(data.rsp),
     }),
     [data]
   )
@@ -218,15 +232,16 @@ export default function QuotationCreate() {
           productId: it.product._id,
           basicPrice: toNumberOrNull(it.basicPrice),
           discount: toNumberOrNull(it.discount),
+          securityAmount: toNumberOrNull(it.securityAmount),
         })),
         rateMonth: data.rateMonth || null,
         basicLabel: data.basicLabel,
         gstMode: data.gstMode,
         gstRate: toNumberOrNull(data.gstRate),
-        securityDeposit: toNumberOrNull(data.securityDeposit),
-        termIds: data.termIds,
+        terms: data.terms || [],
         emailTemplateId: data.emailTemplateId || null,
         recipientIds: data.recipients.map((r) => r._id),
+        rsp: data.rsp?.enabled && data.rsp.marketId ? { marketId: data.rsp.marketId, gst: data.rsp.gst || null } : null,
         step,
       }
       const res = draftId
@@ -268,6 +283,9 @@ export default function QuotationCreate() {
   }
 
   const save = async () => {
+    if (data.rsp?.enabled && !rspPayload(data.rsp)) {
+      return setError("Attach RSP: select the market and the rates image (with or without GST), or untick Attach RSP")
+    }
     setSaving(true)
     setError("")
     try {
@@ -329,11 +347,18 @@ export default function QuotationCreate() {
 
       <Alert>{error}</Alert>
 
-      <div className={step === 1 || step >= 5 ? "" : "bg-white rounded-xl shadow-sm border border-gray-200 p-6"}>
-        {step === 0 && <CompanyStep selected={data.company} onSelect={selectCompany} />}
-        {step === 1 && <ProductsStep data={data} update={update} />}
-        {step === 2 && <TermsStep selectedIds={data.termIds} onChange={(termIds) => update({ termIds })} />}
-        {step === 3 && (
+      <div
+        className={
+          step === STEP.PRODUCTS || step >= STEP.QUOTATION_PREVIEW ? "" : "bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+        }
+      >
+        {step === STEP.COMPANY && <CompanyStep selected={data.company} onSelect={selectCompany} />}
+        {step === STEP.RECIPIENTS && (
+          <RecipientsStep company={data.company} selected={data.recipients} onChange={(recipients) => update({ recipients })} />
+        )}
+        {step === STEP.PRODUCTS && <ProductsStep data={data} update={update} />}
+        {step === STEP.TERMS && <TermsStep selected={data.terms} onChange={(terms) => update({ terms })} />}
+        {step === STEP.TEMPLATE && (
           <EmailTemplateStep
             selectedId={data.emailTemplateId}
             onChange={(emailTemplateId) => update({ emailTemplateId })}
@@ -341,11 +366,10 @@ export default function QuotationCreate() {
             onTouched={() => setData((d) => ({ ...d, templateTouched: true }))}
           />
         )}
-        {step === 4 && (
-          <RecipientsStep company={data.company} selected={data.recipients} onChange={(recipients) => update({ recipients })} />
+        {step === STEP.QUOTATION_PREVIEW && <PreviewStep data={data} payload={payload} />}
+        {step === STEP.EMAIL_PREVIEW && (
+          <EmailPreviewStep payload={payload} rsp={data.rsp || initialData().rsp} onRspChange={(rsp) => update({ rsp })} />
         )}
-        {step === 5 && <PreviewStep data={data} payload={payload} />}
-        {step === 6 && <EmailPreviewStep payload={payload} />}
       </div>
 
       <div className="flex items-center justify-between gap-4 flex-wrap">

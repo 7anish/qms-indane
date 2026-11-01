@@ -17,6 +17,17 @@ const monthTitle = (rateMonth) => {
   return new Date(y, m - 1, 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' }).toUpperCase();
 };
 
+/*
+ * Security amounts. Quotations made before security amounts were set per product only have the
+ * total, so their per-product rows are hidden when the items don't add up to it.
+ */
+const securityOf = (q) => {
+  const items = q.items || [];
+  const sum = Math.round(items.reduce((s, i) => s + (Number(i.securityAmount) || 0), 0) * 100) / 100;
+  const total = q.securityDeposit ?? sum;
+  return { perItem: sum === Math.round(Number(total) * 100) / 100, total };
+};
+
 const rowsFor = (q) => [
   { label: (q.basicLabel || 'BASIC PRICE').toUpperCase(), key: 'basicPrice' },
   { label: 'DISCOUNT', key: 'discount', bold: true },
@@ -54,9 +65,26 @@ const buildPricingTableHtml = (q) => {
     })
     .join('\n');
 
+  const { perItem, total } = securityOf(q);
+  const securityRows = perItem
+    ? items
+        .map(
+          (i) =>
+            `<tr><td style="${cell}">${esc(i.name)}</td><td style="${cell}text-align:center;">${Number(i.capacityKg).toLocaleString('en-IN')} KGS</td><td style="${cell}text-align:right;">${amount(i.securityAmount)}</td></tr>`
+        )
+        .join('\n')
+    : '';
+  const security = `<tr><th colspan="3" style="${cell}background:#FFFF00;text-align:center;font-weight:bold;">SECURITY AMOUNT</th></tr>
+${perItem ? `<tr><th style="${cell}text-align:left;font-weight:bold;">TYPE OF CYLINDER</th><th style="${cell}text-align:center;font-weight:bold;">CAPACITY</th><th style="${cell}text-align:right;font-weight:bold;">SECURITY AMOUNT (RS.)</th></tr>` : ''}
+${securityRows}
+<tr><td colspan="2" style="${cell}background:#92D050;font-weight:bold;">TOTAL SECURITY AMOUNT</td><td style="${cell}background:#92D050;text-align:right;font-weight:bold;">${amount(total)}</td></tr>`;
+
   return `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0;">
 ${header}
 ${body}
+</table>
+<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0;">
+${security}
 </table>`;
 };
 
@@ -68,6 +96,15 @@ const buildPricingTableText = (q) => {
     lines.push('', `${i.name} (${Number(i.capacityKg).toLocaleString('en-IN')} KGS)`);
     rowsFor(q).forEach((r) => lines.push(`  ${r.label}: ${amount(i[r.key])}`));
   });
+
+  const { perItem, total } = securityOf(q);
+  lines.push('', 'SECURITY AMOUNT');
+  if (perItem) {
+    items.forEach((i) =>
+      lines.push(`  ${i.name} (${Number(i.capacityKg).toLocaleString('en-IN')} KGS): ${amount(i.securityAmount)}`)
+    );
+  }
+  lines.push(`  TOTAL SECURITY AMOUNT: ${amount(total)}`);
   return lines.join('\n');
 };
 

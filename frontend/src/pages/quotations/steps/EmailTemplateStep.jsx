@@ -8,22 +8,24 @@ import { bodyExcerpt } from "@/utils/template"
 
 /**
  * Pick the email template used when this quotation is sent (it can still be changed in the send dialog).
- * `selectedId` "" means the built-in text. On first visit the default template is pre-selected.
+ * A template is required. When none is selected yet, the default template (else the first) is pre-selected.
  */
 export default function EmailTemplateStep({ selectedId, onChange, touched, onTouched }) {
   const [templates, setTemplates] = useState([])
-  const [builtIn, setBuiltIn] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
   useEffect(() => {
-    Promise.all([emailTemplateApi.list({ limit: 100 }), emailTemplateApi.variables()])
-      .then(([list, vars]) => {
-        setTemplates(list.data.items)
-        setBuiltIn(vars.data.builtIn)
-        const def = list.data.items.find((t) => t.isDefault)
-        if (!touched && !selectedId && def) onChange(def._id)
-        onTouched()
+    emailTemplateApi
+      .list({ limit: 100 })
+      .then((list) => {
+        const items = list.data.items
+        setTemplates(items)
+        // Pre-select when nothing (or a since-deleted template) is selected
+        const stillExists = items.some((t) => t._id === selectedId)
+        if (!stillExists && items.length) onChange((items.find((t) => t.isDefault) || items[0])._id)
+        else if (!stillExists && selectedId) onChange("")
+        if (!touched) onTouched()
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
@@ -40,10 +42,23 @@ export default function EmailTemplateStep({ selectedId, onChange, touched, onTou
   }
   if (error) return <p className="text-sm text-red-600">{error}</p>
 
-  const options = [
-    ...(builtIn ? [{ _id: "", name: "Built-in default", subject: builtIn.subject, body: builtIn.body, cc: [], bcc: [], builtIn: true }] : []),
-    ...templates,
-  ]
+  if (templates.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+        <p className="text-lg font-medium text-gray-900">No email templates yet</p>
+        <p className="text-gray-500 text-sm mt-2">
+          A template is required to send the quotation.{" "}
+          <Link to="/email-templates/create" target="_blank" className="text-blue-600 hover:text-blue-700">
+            Create one in a new tab
+          </Link>
+          , then come back to this step.
+        </p>
+      </div>
+    )
+  }
+
+  const options = templates
 
   return (
     <div className="space-y-4">
@@ -57,11 +72,11 @@ export default function EmailTemplateStep({ selectedId, onChange, touched, onTou
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {options.map((t) => {
-          const isSelected = (selectedId || "") === t._id
+          const isSelected = selectedId === t._id
           const Icon = isSelected ? CheckCircle : Circle
           return (
             <button
-              key={t._id || "built-in"}
+              key={t._id}
               type="button"
               onClick={() => onChange(t._id)}
               className={`text-left rounded-xl border-2 transition-all cursor-pointer ${
@@ -79,7 +94,6 @@ export default function EmailTemplateStep({ selectedId, onChange, touched, onTou
                 {t.format === "html" && (
                   <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">HTML</span>
                 )}
-                {t.builtIn && <Mail className="w-4 h-4 text-gray-400" />}
               </div>
               <div className="px-5 pb-4 pt-2 pl-12 space-y-1">
                 <p className="text-sm font-medium text-gray-800">

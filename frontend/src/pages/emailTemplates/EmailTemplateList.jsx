@@ -47,7 +47,7 @@ export default function EmailTemplateList() {
   }, [load])
 
   const remove = async (t) => {
-    if (!window.confirm(`Delete the template "${t.name}"? Quotations using it will fall back to the built-in text.`)) return
+    if (!window.confirm(`Delete the template "${t.name}"? Quotations using it will use the default template instead.`)) return
     try {
       await emailTemplateApi.remove(t._id)
       load()

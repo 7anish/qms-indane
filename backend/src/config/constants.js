@@ -31,6 +31,12 @@ const GST_MODE = Object.freeze({
 
 const DEFAULT_GST_RATE = 18;
 
+// Which market RSP (Retail Selling Price) rate image is attached to a quotation email
+const RSP_GST = Object.freeze({
+  WITH: 'with',
+  WITHOUT: 'without',
+});
+
 // Indian GSTIN, e.g. 27ABCDE1234F1Z5
 const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 // Indian PAN, e.g. ABCDE1234F
@@ -52,6 +58,7 @@ module.exports = {
   QUOTATION_STATUS,
   GST_MODE,
   DEFAULT_GST_RATE,
+  RSP_GST,
   GST_REGEX,
   PAN_REGEX,
   COMPANY_FILE_FIELDS,

@@ -1,11 +1,26 @@
 const { body, param, query } = require('express-validator');
-const { GST_MODE } = require('../config/constants');
+const { GST_MODE, RSP_GST } = require('../config/constants');
 const { emailListRules } = require('./emailTemplate.validator');
 
 const MAX_ITEMS = 20;
 const MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 const quotationIdRules = [param('quotationId').isMongoId().withMessage('Invalid quotation id')];
+
+// terms: [{ termId, points: [point text] }] - the points chosen from each Terms & Conditions entry
+const termRules = [
+  body('terms').optional().isArray().withMessage('Terms must be a list'),
+  body('terms.*.termId').isMongoId().withMessage('Invalid terms id'),
+  body('terms.*.points').isArray().withMessage('Terms points must be a list'),
+  body('terms.*.points.*').isString().withMessage('Invalid terms point'),
+];
+
+// rsp: { marketId, gst } - optional market RSP rate image to attach to the email; null = none
+const rspRules = [
+  body('rsp').optional({ values: 'null' }).isObject().withMessage('Invalid RSP attachment'),
+  body('rsp.marketId').optional({ values: 'falsy' }).isMongoId().withMessage('Invalid market'),
+  body('rsp.gst').optional({ values: 'falsy' }).isIn(Object.values(RSP_GST)).withMessage('Choose the rates with or without GST'),
+];
 
 // Full payload: shared by preview and create, so the preview always matches what will be saved
 const quotationPayloadRules = [
@@ -24,18 +39,21 @@ const quotationPayloadRules = [
     .isFloat({ min: 0 })
     .withMessage('Discount must be 0 or more')
     .toFloat(),
+  body('items.*.securityAmount')
+    .optional({ values: 'null' })
+    .isFloat({ min: 0 })
+    .withMessage('Security amount must be 0 or more')
+    .toFloat(),
 
   body('gstMode').optional().isIn(Object.values(GST_MODE)).withMessage('GST must be included or excluded'),
   body('gstRate').optional().isFloat({ min: 0, max: 100 }).withMessage('GST rate must be between 0 and 100').toFloat(),
   body('rateMonth').optional().matches(MONTH_REGEX).withMessage('Rate month must be in YYYY-MM format'),
   body('basicLabel').optional().trim().isLength({ max: 60 }).withMessage('Basic price label is too long'),
 
-  body('securityDeposit').isFloat({ min: 0 }).withMessage('Security deposit must be 0 or more').toFloat(),
+  ...termRules,
+  ...rspRules,
 
-  body('termIds').optional().isArray().withMessage('Terms must be a list'),
-  body('termIds.*').isMongoId().withMessage('Invalid terms id'),
-
-  body('emailTemplateId').optional({ values: 'falsy' }).isMongoId().withMessage('Invalid email template'),
+  body('emailTemplateId').notEmpty().withMessage('Select an email template').bail().isMongoId().withMessage('Invalid email template'),
 
   body('recipientIds').isArray({ min: 1 }).withMessage('Select at least one employee to send the quotation to'),
   body('recipientIds.*').isMongoId().withMessage('Invalid employee'),
@@ -48,13 +66,13 @@ const draftPayloadRules = [
   body('items.*.productId').isMongoId().withMessage('Invalid product'),
   body('items.*.basicPrice').optional({ values: 'null' }).isFloat({ min: 0 }).withMessage('Basic price must be 0 or more').toFloat(),
   body('items.*.discount').optional({ values: 'null' }).isFloat({ min: 0 }).withMessage('Discount must be 0 or more').toFloat(),
+  body('items.*.securityAmount').optional({ values: 'null' }).isFloat({ min: 0 }).withMessage('Security amount must be 0 or more').toFloat(),
   body('gstMode').optional({ values: 'falsy' }).isIn(Object.values(GST_MODE)).withMessage('GST must be included or excluded'),
   body('gstRate').optional({ values: 'null' }).isFloat({ min: 0, max: 100 }).withMessage('GST rate must be between 0 and 100').toFloat(),
   body('rateMonth').optional({ values: 'falsy' }).matches(MONTH_REGEX).withMessage('Rate month must be in YYYY-MM format'),
   body('basicLabel').optional({ values: 'null' }).trim().isLength({ max: 60 }).withMessage('Basic price label is too long'),
-  body('securityDeposit').optional({ values: 'null' }).isFloat({ min: 0 }).withMessage('Security deposit must be 0 or more').toFloat(),
-  body('termIds').optional().isArray().withMessage('Terms must be a list'),
-  body('termIds.*').isMongoId().withMessage('Invalid terms id'),
+  ...termRules,
+  ...rspRules,
   body('recipientIds').optional().isArray().withMessage('Recipients must be a list'),
   body('recipientIds.*').isMongoId().withMessage('Invalid employee'),
   body('emailTemplateId').optional({ values: 'falsy' }).isMongoId().withMessage('Invalid email template'),

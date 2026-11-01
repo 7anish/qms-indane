@@ -7,10 +7,11 @@ const Term = require('../models/Term');
 const CompanyEmployee = require('../models/CompanyEmployee');
 const Counter = require('../models/Counter');
 const EmailTemplate = require('../models/EmailTemplate');
+const Market = require('../models/Market');
 const ApiError = require('../utils/ApiError');
 const { getPagination, buildMeta } = require('../utils/pagination');
 const { toFileMeta, deleteStoredFile } = require('../utils/file');
-const { calcLine } = require('../utils/quotationCalc');
+const { calcLine, round2 } = require('../utils/quotationCalc');
 const { renderQuotationPdf } = require('./quotationPdf.service');
 const { sendMail } = require('./mail.service');
 const { renderTemplate, escapeHtml } = require('../utils/template');
@@ -18,7 +19,7 @@ const { sanitizeEmailHtml, htmlToText, wrapEmailHtml } = require('../utils/email
 const { buildPricingTableHtml, buildPricingTableText } = require('../utils/pricingTable');
 const { BUILT_IN_TEMPLATE, EMAIL_FORMAT } = require('../config/emailVariables');
 const { UPLOAD_ROOT, UPLOAD_DIRS } = require('../config/upload');
-const { GST_MODE, DEFAULT_GST_RATE, PRODUCT_STATUS, QUOTATION_STATUS, ROLES } = require('../config/constants');
+const { GST_MODE, DEFAULT_GST_RATE, PRODUCT_STATUS, QUOTATION_STATUS, ROLES, RSP_GST } = require('../config/constants');
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -36,6 +37,60 @@ const companySnapshotOf = (company) => ({
   phone: company.phone,
   gstNumber: company.gstNumber,
 });
+
+/* ------------------------------------------------------------------ */
+/* Market RSP attachment                                               */
+/* ------------------------------------------------------------------ */
+
+const RSP_IMAGE_FIELD = { [RSP_GST.WITH]: 'ratesWithGst', [RSP_GST.WITHOUT]: 'ratesWithoutGst' };
+
+// e.g. "RSP - Bhiwadi Market - With GST - November 2026.jpg"
+const rspFileName = (rsp) => {
+  const gst = rsp.gst === RSP_GST.WITH ? 'With GST' : 'Without GST';
+  const month = rsp.ratesMonth ? ` - ${monthTitle(rsp.ratesMonth)}` : '';
+  const ext = path.extname(rsp.file.fileName || rsp.file.path) || '.jpg';
+  const title = rsp.marketTitle.replace(/[\\/:*?"<>|]+/g, ' ').trim();
+  return `RSP - ${title} - ${gst}${month}${ext}`;
+};
+
+/**
+ * The market rate image chosen in the wizard (payload.rsp = { marketId, gst }), or undefined.
+ * `file` still points at the market's image here; createQuotation stores a copy.
+ */
+const buildRspAttachment = async (rsp) => {
+  if (!rsp?.marketId) return undefined;
+  if (!RSP_IMAGE_FIELD[rsp.gst]) throw ApiError.badRequest('Choose the RSP rates with GST or without GST');
+  const market = await Market.findById(rsp.marketId);
+  if (!market) throw ApiError.badRequest('Selected market was not found');
+  const file = market[RSP_IMAGE_FIELD[rsp.gst]];
+  if (!file?.path) {
+    throw ApiError.badRequest(
+      `${market.title} has no rates image ${rsp.gst === RSP_GST.WITH ? 'with' : 'without'} GST. Upload it under Markets first.`
+    );
+  }
+  return {
+    market: market._id,
+    marketTitle: market.title,
+    gst: rsp.gst,
+    ratesMonth: market.ratesMonth,
+    file: file.toObject ? file.toObject() : file,
+  };
+};
+
+// Copy the market image into the quotations folder so the quotation keeps it after monthly updates
+const copyRspImage = async (rsp, quotationNumber) => {
+  const ext = path.extname(rsp.file.path) || '.jpg';
+  const fileName = `${quotationNumber}-rsp${ext}`;
+  const dest = path.join(UPLOAD_ROOT, UPLOAD_DIRS.QUOTATIONS, fileName);
+  const src = path.resolve(UPLOAD_ROOT, rsp.file.path);
+  try {
+    await fs.promises.copyFile(src, dest);
+  } catch {
+    throw ApiError.badRequest(`The ${rsp.marketTitle} rates image is missing on the server. Upload it again under Markets.`);
+  }
+  const { size } = await fs.promises.stat(dest);
+  return toFileMeta({ path: dest, filename: fileName, originalname: rspFileName(rsp), mimetype: rsp.file.mimeType, size });
+};
 
 /**
  * Turn the full wizard payload into quotation data: loads and checks every referenced record,
@@ -62,26 +117,34 @@ const buildQuotationData = async (payload) => {
     const basicPrice = line.basicPrice ?? product.currentPrice;
     const discount = line.discount ?? 0;
     if (discount > basicPrice) throw ApiError.badRequest(`${product.name}: discount cannot be more than the basic price`);
+    const securityAmount = round2(line.securityAmount ?? product.securityAmount ?? 0);
 
     return {
       product: product._id,
       name: product.name,
-      sku: product.sku,
       gasType: product.gasType,
       unit: product.unit,
       capacityKg: product.cylinderCapacityKg,
       ...calcLine({ basicPrice, discount, capacityKg: product.cylinderCapacityKg }, gstMode, gstRate),
+      securityAmount,
     };
   });
 
-  // Terms, in the order they were selected
-  const termIds = (payload.termIds || []).map(String);
+  // Selected terms points: terms in the order they were selected, points in the term's own order
+  const termSelections = (payload.terms || []).filter((s) => s.points?.length);
+  const termIds = termSelections.map((s) => String(s.termId));
+  if (new Set(termIds).size !== termIds.length) throw ApiError.badRequest('The same terms were selected twice');
   const termDocs = await Term.find({ _id: { $in: termIds } });
   const termMap = new Map(termDocs.map((t) => [String(t._id), t]));
-  const terms = termIds.map((id) => {
-    const t = termMap.get(id);
+  const terms = termSelections.map((s) => {
+    const t = termMap.get(String(s.termId));
     if (!t) throw ApiError.badRequest('A selected Terms & Conditions entry was not found');
-    return { term: t._id, heading: t.heading, points: t.points };
+    const wanted = new Set(s.points);
+    const points = t.points.filter((p) => wanted.has(p));
+    if (points.length !== wanted.size) {
+      throw ApiError.badRequest(`"${t.heading}" has been edited since its points were selected. Please select them again.`);
+    }
+    return { term: t._id, heading: t.heading, points };
   });
 
   // Recipients must be employees of the selected company
@@ -96,9 +159,12 @@ const buildQuotationData = async (payload) => {
     return { employee: e._id, name: e.name, email: e.email, designation: e.designation };
   });
 
-  if (payload.emailTemplateId && !(await EmailTemplate.exists({ _id: payload.emailTemplateId }))) {
+  if (!payload.emailTemplateId) throw ApiError.badRequest('Select an email template');
+  if (!(await EmailTemplate.exists({ _id: payload.emailTemplateId }))) {
     throw ApiError.badRequest('Selected email template was not found');
   }
+
+  const rspAttachment = await buildRspAttachment(payload.rsp);
 
   return {
     company: company._id,
@@ -108,10 +174,11 @@ const buildQuotationData = async (payload) => {
     items,
     gstMode,
     gstRate,
-    securityDeposit: payload.securityDeposit,
+    securityDeposit: round2(items.reduce((sum, i) => sum + i.securityAmount, 0)),
     terms,
     emailTemplate: payload.emailTemplateId || undefined,
     recipients,
+    rspAttachment,
   };
 };
 
@@ -144,8 +211,9 @@ const getQuotationById = async (id) => {
     .populate('draft.emailTemplate', 'name')
     // Drafts: return the referenced records so the wizard can be resumed
     .populate('draft.items.product')
-    .populate('draft.terms', '_id')
-    .populate('draft.recipients');
+    .populate('draft.terms', 'points') // older drafts selected whole terms
+    .populate('draft.recipients')
+    .populate('draft.rsp.market', 'title ratesMonth ratesWithGst ratesWithoutGst');
   if (!q) throw ApiError.notFound('Quotation not found');
   return q;
 };
@@ -159,15 +227,17 @@ const toDraft = (payload) => ({
     product: i.productId,
     basicPrice: i.basicPrice ?? undefined,
     discount: i.discount ?? undefined,
+    securityAmount: i.securityAmount ?? undefined,
   })),
   rateMonth: payload.rateMonth || undefined,
   basicLabel: payload.basicLabel ?? undefined,
   gstMode: payload.gstMode || undefined,
   gstRate: payload.gstRate ?? undefined,
-  securityDeposit: payload.securityDeposit ?? undefined,
-  terms: payload.termIds || [],
+  terms: [],
+  termPoints: (payload.terms || []).map((s) => ({ term: s.termId, points: s.points || [] })),
   recipients: payload.recipientIds || [],
   emailTemplate: payload.emailTemplateId || undefined,
+  rsp: payload.rsp?.marketId ? { market: payload.rsp.marketId, gst: payload.rsp.gst || undefined } : undefined,
   step: payload.step ?? 0,
 });
 
@@ -223,7 +293,15 @@ const createQuotation = async (payload, adminId) => {
     size: buffer.length,
   });
 
-  q.set({ ...data, quotationNumber, pdf, status: QUOTATION_STATUS.READY, updatedBy: adminId });
+  let rspAttachment;
+  try {
+    if (data.rspAttachment) rspAttachment = { ...data.rspAttachment, file: await copyRspImage(data.rspAttachment, quotationNumber) };
+  } catch (err) {
+    await deleteStoredFile(pdf.path);
+    throw err;
+  }
+
+  q.set({ ...data, rspAttachment, quotationNumber, pdf, status: QUOTATION_STATUS.READY, updatedBy: adminId });
   q.draft = undefined;
   if (!payload.draftId) q.createdAt = issuedAt;
 
@@ -231,6 +309,7 @@ const createQuotation = async (payload, adminId) => {
     await q.save();
   } catch (err) {
     await deleteStoredFile(pdf.path);
+    await deleteStoredFile(rspAttachment?.file?.path);
     throw err;
   }
   return getQuotationById(q._id);
@@ -270,9 +349,11 @@ const loadQuotationForEmail = async (id) => {
 };
 
 /**
- * The email as it will be sent with a given template (default: the quotation's own template,
- * or the built-in text when it has none). Shared variables are filled in; {{recipientName}} and
- * {{pricingTable}} stay as placeholders and are filled in for each recipient on send.
+ * The email as it will be sent with a given template (default: the quotation's own template).
+ * Older quotations without a template (or whose template was deleted) use the default template,
+ * else the first one; the built-in text is only a last resort when no templates exist at all.
+ * Shared variables are filled in; {{recipientName}} and {{pricingTable}} stay as placeholders
+ * and are filled in for each recipient on send.
  */
 const composeEmail = async (id, admin, templateId) => {
   const q = await loadQuotationForEmail(id);
@@ -281,6 +362,7 @@ const composeEmail = async (id, admin, templateId) => {
   const wantedId = templateId || q.emailTemplate;
   if (wantedId) template = await EmailTemplate.findById(wantedId);
   if (templateId && !template) throw ApiError.badRequest('Selected email template was not found');
+  if (!template) template = await EmailTemplate.findOne().sort({ isDefault: -1, name: 1 });
 
   const source = template || BUILT_IN_TEMPLATE;
   const format = source.format || EMAIL_FORMAT.TEXT;
@@ -345,6 +427,13 @@ const sendQuotationEmail = async (id, { templateId, subject, message, format = E
   const pdfPath = path.resolve(UPLOAD_ROOT, q.pdf.path);
   if (!fs.existsSync(pdfPath)) throw ApiError.badRequest('The quotation PDF file is missing on the server');
 
+  const attachments = [{ filename: `${q.quotationNumber}.pdf`, path: pdfPath, contentType: 'application/pdf' }];
+  if (q.rspAttachment?.file?.path) {
+    const rspPath = path.resolve(UPLOAD_ROOT, q.rspAttachment.file.path);
+    if (!fs.existsSync(rspPath)) throw ApiError.badRequest('The attached RSP rates image is missing on the server');
+    attachments.push({ filename: rspFileName(q.rspAttachment), path: rspPath, contentType: q.rspAttachment.file.mimeType });
+  }
+
   // Build every email first so a bad template fails before anything is sent
   const emails = q.recipients.map((recipient) => ({
     recipient,
@@ -365,7 +454,7 @@ const sendQuotationEmail = async (id, { templateId, subject, message, format = E
         subject: content.subject,
         text: content.text,
         html: content.html,
-        attachments: [{ filename: `${q.quotationNumber}.pdf`, path: pdfPath, contentType: 'application/pdf' }],
+        attachments,
       });
       sent.push({ recipient, subject: content.subject, info });
     } catch (err) {
@@ -409,14 +498,14 @@ const sendQuotationEmail = async (id, { templateId, subject, message, format = E
 
 /**
  * Wizard "Email Preview" step: the email each recipient will get, rendered from unsaved wizard
- * data with the selected template (or the built-in text). Nothing is saved or sent.
+ * data with the selected template. Nothing is saved or sent.
  */
 const previewEmails = async (payload, admin) => {
   const data = await buildQuotationData(payload);
 
-  let template = null;
-  if (payload.emailTemplateId) template = await EmailTemplate.findById(payload.emailTemplateId);
-  const source = template || BUILT_IN_TEMPLATE;
+  // buildQuotationData has already checked that the template exists
+  const template = await EmailTemplate.findById(payload.emailTemplateId);
+  const source = template;
   const format = source.format || EMAIL_FORMAT.TEXT;
 
   const quotationNumber = await peekNextQuotationNumber();
@@ -428,12 +517,13 @@ const previewEmails = async (payload, admin) => {
   const bcc = (source.bcc || []).filter((e) => !recipientEmails.includes(e) && !cc.includes(e));
 
   return {
-    templateName: template?.name || BUILT_IN_TEMPLATE.name,
+    templateName: template.name,
     format,
     quotationNumber,
     cc,
     bcc,
     attachment: `${quotationNumber}.pdf`,
+    attachments: [`${quotationNumber}.pdf`, ...(q.rspAttachment ? [rspFileName(q.rspAttachment)] : [])],
     emails: q.recipients.map((recipient) => {
       const content = buildEmailContent(q, admin, recipient, { subject: source.subject, message: source.body, format });
       return {
@@ -557,6 +647,7 @@ const deleteQuotation = async (id, admin) => {
   }
   await q.deleteOne();
   await deleteStoredFile(q.pdf?.path);
+  await deleteStoredFile(q.rspAttachment?.file?.path);
 };
 
 module.exports = {

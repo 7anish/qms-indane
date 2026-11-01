@@ -21,12 +21,6 @@ const productSchema = new mongoose.Schema(
       trim: true,
       maxlength: 200,
     },
-    sku: {
-      type: String,
-      trim: true,
-      uppercase: true,
-      maxlength: 50,
-    },
     description: {
       type: String,
       required: [true, 'Description is required'],
@@ -60,6 +54,12 @@ const productSchema = new mongoose.Schema(
       required: [true, 'Current price is required'],
       min: [0, 'Price cannot be negative'],
     },
+    // Refundable deposit per cylinder; copied into quotations, where it can be changed
+    securityAmount: {
+      type: Number,
+      default: 0,
+      min: [0, 'Security amount cannot be negative'],
+    },
     previousPrices: {
       type: [priceChangeSchema],
       default: [],
@@ -71,8 +71,6 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// SKU is optional but must be unique when present
-productSchema.index({ sku: 1 }, { unique: true, partialFilterExpression: { sku: { $type: 'string' } } });
 productSchema.index({ name: 1 });
 
 /*

@@ -3,7 +3,7 @@ const ApiError = require('../utils/ApiError');
 const { getPagination, buildMeta } = require('../utils/pagination');
 const { toFileMeta, deleteStoredFile } = require('../utils/file');
 
-const FIELDS = ['name', 'sku', 'description', 'unit', 'status', 'gasType', 'cylinderCapacityKg', 'currentPrice'];
+const FIELDS = ['name', 'description', 'unit', 'status', 'gasType', 'cylinderCapacityKg', 'currentPrice', 'securityAmount'];
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -15,7 +15,7 @@ const listProducts = async (query) => {
   if (query.gasType) filter.gasType = query.gasType;
   if (query.search) {
     const regex = new RegExp(escapeRegex(query.search), 'i');
-    filter.$or = [{ name: regex }, { sku: regex }, { gasType: regex }, { description: regex }];
+    filter.$or = [{ name: regex }, { gasType: regex }, { description: regex }];
   }
 
   const [items, total] = await Promise.all([
@@ -32,16 +32,7 @@ const getProductById = async (id) => {
   return product;
 };
 
-const assertSkuAvailable = async (sku, excludeId) => {
-  if (!sku) return;
-  const filter = { sku: sku.toUpperCase() };
-  if (excludeId) filter._id = { $ne: excludeId };
-  if (await Product.exists(filter)) throw ApiError.conflict(`SKU ${sku.toUpperCase()} is already used by another product`);
-};
-
 const createProduct = async (data, file, adminId) => {
-  await assertSkuAvailable(data.sku);
-
   const doc = { createdBy: adminId, updatedBy: adminId };
   FIELDS.forEach((f) => {
     if (data[f] !== undefined && data[f] !== '') doc[f] = data[f];
@@ -55,11 +46,8 @@ const updateProduct = async (id, data, file, adminId) => {
   const product = await Product.findById(id);
   if (!product) throw ApiError.notFound('Product not found');
 
-  if (data.sku && data.sku.toUpperCase() !== product.sku) await assertSkuAvailable(data.sku, id);
-
   FIELDS.forEach((f) => {
-    if (data[f] === undefined) return;
-    product[f] = f === 'sku' && data[f] === '' ? undefined : data[f];
+    if (data[f] !== undefined) product[f] = data[f];
   });
   product.updatedBy = adminId;
   product.$locals.changedBy = adminId; // recorded in previousPrices if the price changed

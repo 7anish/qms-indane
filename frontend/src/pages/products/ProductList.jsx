@@ -100,7 +100,7 @@ export default function ProductList() {
                   setSearch(e.target.value)
                   setPage(1)
                 }}
-                placeholder="Search name, SKU, gas type"
+                placeholder="Search name, gas type"
                 className="w-64 pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -132,7 +132,7 @@ export default function ProductList() {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  {["Product", "Gas Type", "Capacity", "Unit", "Current Price", "Status", ""].map((h, i) => (
+                  {["Product", "Gas Type", "Capacity", "Unit", "Current Price", "Security Amount", "Status", ""].map((h, i) => (
                     <th key={i} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {h}
                     </th>
@@ -153,7 +153,6 @@ export default function ProductList() {
                         )}
                         <div className="min-w-0">
                           <div className="text-sm font-medium text-gray-900 group-hover:text-blue-700">{p.name}</div>
-                          <div className="text-xs text-gray-500 font-mono">{p.sku || "No SKU"}</div>
                         </div>
                       </Link>
                     </td>
@@ -163,6 +162,7 @@ export default function ProductList() {
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{p.cylinderCapacityKg} kg</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">{p.unit}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formatPrice(p.currentPrice)}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{formatPrice(p.securityAmount || 0)}</td>
                     <td className="px-4 py-4 whitespace-nowrap"><StatusBadge status={p.status} /></td>
                     <td className="px-4 py-4 whitespace-nowrap text-right">
                       <Link

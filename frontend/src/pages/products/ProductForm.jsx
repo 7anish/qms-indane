@@ -13,7 +13,7 @@ const inputCls =
   "w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 const errorInputCls = "border-red-300 bg-red-50"
 
-const FIELDS = ["name", "sku", "description", "unit", "status", "gasType", "cylinderCapacityKg", "currentPrice"]
+const FIELDS = ["name", "description", "unit", "status", "gasType", "cylinderCapacityKg", "currentPrice", "securityAmount"]
 const emptyForm = { ...Object.fromEntries(FIELDS.map((f) => [f, ""])), status: "active" }
 
 // Suggestions only; any value can be typed
@@ -63,7 +63,7 @@ export default function ProductForm() {
 
   const onChange = (e) => {
     const { name, value } = e.target
-    setForm((f) => ({ ...f, [name]: name === "sku" ? value.toUpperCase() : value }))
+    setForm((f) => ({ ...f, [name]: value }))
     setFieldErrors((fe) => ({ ...fe, [name]: undefined }))
   }
 
@@ -75,6 +75,7 @@ export default function ProductForm() {
     if (!form.gasType.trim()) errs.gasType = "Gas type is required"
     if (!(Number(form.cylinderCapacityKg) > 0)) errs.cylinderCapacityKg = "Enter a capacity greater than 0"
     if (form.currentPrice === "" || !(Number(form.currentPrice) >= 0)) errs.currentPrice = "Enter a price of 0 or more"
+    if (form.securityAmount !== "" && !(Number(form.securityAmount) >= 0)) errs.securityAmount = "Enter an amount of 0 or more"
     setFieldErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -89,8 +90,8 @@ export default function ProductForm() {
     const fd = new FormData()
     FIELDS.forEach((f) => {
       const v = String(form[f]).trim()
-      // On create, skip an empty SKU; on edit, send "" to clear it
-      if (v || isEdit) fd.append(f, v)
+      // An empty security amount means 0
+      fd.append(f, f === "securityAmount" && v === "" ? "0" : v)
     })
     if (image) fd.append("image", image)
     else if (removeImage) fd.append("removeImage", "true")
@@ -135,9 +136,6 @@ export default function ProductForm() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field label="Product Name" required error={fieldErrors.name}>
                 <input name="name" value={form.name} onChange={onChange} placeholder="e.g. Oxygen Cylinder 47L" className={`${inputCls} ${err("name")}`} />
-              </Field>
-              <Field label="SKU">
-                <input name="sku" value={form.sku} onChange={onChange} maxLength={50} placeholder="e.g. OXY-47L" className={`${inputCls} font-mono`} />
               </Field>
               <Field label="Gas Type" required error={fieldErrors.gasType}>
                 <input
@@ -218,6 +216,24 @@ export default function ProductForm() {
                   className={`${inputCls} ${err("currentPrice")}`}
                 />
               </Field>
+              <div className="mt-4">
+                <Field
+                  label="Security Amount (₹)"
+                  error={fieldErrors.securityAmount}
+                  hint="Deposit per cylinder. Filled in on quotations, where it can be changed."
+                >
+                  <input
+                    type="number"
+                    name="securityAmount"
+                    value={form.securityAmount}
+                    onChange={onChange}
+                    min="0"
+                    step="0.01"
+                    placeholder="e.g. 5000"
+                    className={`${inputCls} ${err("securityAmount")}`}
+                  />
+                </Field>
+              </div>
               {priceChanged && (
                 <div className="mt-3 flex items-start gap-2 bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
                   <History className="w-4 h-4 mt-0.5 shrink-0" />

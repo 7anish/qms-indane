@@ -103,7 +103,7 @@ export default function ProductDetail() {
               <h1 className="text-2xl font-bold text-gray-900">{product.name}</h1>
               <StatusBadge status={product.status} />
             </div>
-            <p className="text-gray-600 font-mono text-sm">{product.sku || "No SKU"}</p>
+            <p className="text-gray-600 text-sm">{product.gasType} · {product.cylinderCapacityKg} kg</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -174,7 +174,7 @@ export default function ProductDetail() {
               <InfoItem label="Gas Type" value={product.gasType} />
               <InfoItem label="Cylinder Capacity" value={`${product.cylinderCapacityKg} kg`} />
               <InfoItem label="Unit" value={product.unit} />
-              <InfoItem label="SKU" value={product.sku} mono />
+              <InfoItem label="Security Amount" value={formatPrice(product.securityAmount || 0)} />
             </div>
             <InfoItem label="Description" value={product.description} />
           </div>

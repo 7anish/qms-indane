@@ -10,7 +10,7 @@ const EMAIL_VARIABLES = Object.freeze([
   { name: 'quotationDate', label: 'Quotation date', sample: '17 Oct 2026' },
   { name: 'rateMonth', label: 'Rates month', sample: 'October 2026' },
   { name: 'products', label: 'Product names', sample: 'Liquid Oxygen, Nitrogen Cylinder' },
-  { name: 'securityDeposit', label: 'Security deposit', sample: 'Rs. 25,000.00' },
+  { name: 'securityDeposit', label: 'Total security amount', sample: 'Rs. 25,000.00' },
   // Rendered as a styled table in HTML emails and as lines of text in plain-text emails
   { name: 'pricingTable', label: 'Pricing table', sample: '(pricing table)' },
   // Each recipient gets a separate email, so this is the name of the person that email goes to
